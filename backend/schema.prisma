@@ -1,0 +1,42 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider             = "prisma-client-py"
+  recursive_type_depth = 5
+}
+
+model UserProfile {
+  id         String   @id @default(uuid())
+  name       String
+  id_number  String   @unique
+  dob        String
+  created_at DateTime @default(now())
+  grievances Grievance[]
+}
+
+model Grievance {
+  id               String      @id @default(uuid())
+  user_id          String
+  user             UserProfile @relation(fields: [user_id], references: [id])
+  original_query   String
+  translated_query String?
+  category         String
+  status           String      @default("PENDING")
+  letter_pdf_url   String?
+  created_at       DateTime    @default(now())
+  reasoning_logs   AgentReasoning[]
+}
+
+model AgentReasoning {
+  id             String    @id @default(uuid())
+  grievance_id   String?
+  grievance      Grievance? @relation(fields: [grievance_id], references: [id])
+  agent_name     String
+  action_taken   String
+  confidence     Float?
+  metadata_json  String?
+  created_at     DateTime  @default(now())
+}

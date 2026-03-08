@@ -1,0 +1,11 @@
+{
+    "schemes": {
+        "PM_Kisan": {
+            "required_age": 18,
+            "blocked_locations": [
+                "Urban_Tier_1",
+                "Non_Farming_Zone"
+            ]
+        }
+    }
+}

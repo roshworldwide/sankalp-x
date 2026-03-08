@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pydantic
+prisma
+fpdf
+python-multipart
+boto3
+python-dotenv

@@ -1,0 +1,30 @@
+{
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "@types/three": "^0.183.1",
+    "framer-motion": "^12.34.3",
+    "lucide-react": "^0.575.0",
+    "next": "^16.1.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "three": "^0.183.1"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "backend": "cd backend && source venv/bin/activate && uvicorn main:app --reload",
+    "sankalp": "concurrently \"npm run backend\" \"npm run dev\""
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/node": "25.3.2",
+    "@types/react": "19.2.14",
+    "autoprefixer": "^10.4.27",
+    "concurrently": "^9.2.1",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.2.1",
+    "typescript": "5.9.3"
+  }
+}
