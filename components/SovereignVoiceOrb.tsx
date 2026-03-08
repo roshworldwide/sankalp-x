@@ -338,14 +338,32 @@ export default function SovereignVoiceOrb() {
                                 setPhase("speaking");
                                 const synth = window.speechSynthesis;
 
-                                const textLower = transcript.toLowerCase();
+                                const text = transcript.toLowerCase();
                                 let responseText = "My civic and financial reasoning nodes are currently optimizing. Please ask a specific problem statement query.";
 
-                                if (textLower.includes("status") || textLower.includes("architecture")) {
-                                    responseText = "I have analyzed your request. The WebSocket streaming architecture is fully operational, maintaining a latency of under two milliseconds.";
-                                } else if (textLower.includes("stipend") || textLower.includes("allocate")) {
-                                    responseText = "Processing financial parameters for a 30,000 rupee stipend. I recommend a 50-30-20 split: 15,000 rupees for hostel rent and essentials, 9,000 rupees for discretionary spending, and 6,000 rupees routed immediately into a high-yield index fund.";
-                                } else if (textLower.includes("future") || textLower.includes("vision")) {
+                                if (text.includes("status")) {
+                                    responseText = "Systems optimized. The WebSocket architecture is holding latency under two milliseconds.";
+                                } else if (text.includes("allocate") || text.includes("thirty")) {
+                                    responseText = "For a ₹30,000 monthly income, I recommend allocating ₹12,000 for your Bangalore hostel and utilities, ₹8,000 for essentials, and investing the remaining ₹10,000 in a diversified mutual fund.";
+                                } else if (text.includes("medical") || text.includes("medicine")) {
+                                    responseText = "To reduce healthcare expenses, I have located three Pradhan Mantri Bhartiya Janaushadhi Kendras nearby for highly affordable generic medications.";
+                                } else if (text.includes("bank") || text.includes("grievance")) {
+                                    responseText = "If you have an unresolved grievance with a major bank like HDFC, I can immediately assist you in drafting a formal complaint for the National Consumer Disputes Redressal Commission.";
+                                } else if (text.includes("flight") || text.includes("luggage")) {
+                                    responseText = "Under the Carriage by Air Act, you are entitled to compensation for damaged baggage. I can help you file a claim against the airline through the AirSewa public portal.";
+                                } else if (text.includes("study") || text.includes("exams")) {
+                                    responseText = "I have optimized your study schedule. Priority is assigned to Data Warehousing and Machine Learning to prepare for your upcoming 6th-semester mid-terms.";
+                                } else if (text.includes("one lakh") || text.includes("goal")) {
+                                    responseText = "To reach your milestone of earning one lakh per month, I suggest leveraging your Next.js and backend architecture skills to secure concurrent remote internships.";
+                                } else if (text.includes("discount") || text.includes("ipad")) {
+                                    responseText = "For purchasing productivity hardware like an iPad, I recommend utilizing your student discount combined with a GST invoice to maximize your tax benefits.";
+                                } else if (text.includes("invest") || text.includes("risk")) {
+                                    responseText = "Based on a moderate risk profile, deploying capital into high-yield index funds will provide the most stable long-term growth for your portfolio.";
+                                } else if (text.includes("resume") || text.includes("brand")) {
+                                    responseText = "Your profile has been optimized. Emphasizing your custom WebSocket streaming architectures will drastically increase your interview invite rate.";
+                                } else if (text.includes("solve") || text.includes("purpose")) {
+                                    responseText = "Sankalp X exists to bridge the gap between complex public resources and the citizens who need them, making civic and financial intelligence instantly accessible.";
+                                } else if (text.includes("future") || text.includes("vision")) {
                                     responseText = "Sankalp X is designed to scale globally. The next deployment phase involves deep integration with banking APIs and predictive wealth modeling.";
                                 }
 
