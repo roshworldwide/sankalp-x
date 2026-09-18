@@ -20,10 +20,6 @@ class EthicalGuardrailVeto(Exception):
 class SutraValidator:
     @staticmethod
     def align_response(draft_response: str) -> str:
-        """
-        Evaluates an AI-generated response against the IndiaAI 7 Sutras.
-        Throws EthicalGuardrailVeto if it detects critical misalignment.
-        """
         print("[Sutra Validator] Checking output against IndiaAI 7 Sutras...")
         
         system_prompt = f"""
@@ -78,10 +74,7 @@ class SutraValidator:
             return draft_response
             
         except EthicalGuardrailVeto as e:
-            # Re-raise explicit vetoes so the Supervisor can handle it
             raise e
         except Exception as e:
             print(f"[Sutra Validator Runtime Error] Defaulting to safe. Error: {e}")
-            # In a strict environment, a failure to validate might trigger a hard stop.
-            # For this prototype, if the LLM validation call fails, we let it pass.
             return draft_response

@@ -3,20 +3,17 @@ import time
 import os
 from dotenv import load_dotenv
 
-# 1. Load your AWS keys from the .env file
 load_dotenv()
 
-# 2. Explicitly pass the credentials to Boto3
 transcribe = boto3.client(
     'transcribe', 
-    region_name=os.getenv('AWS_REGION', 'us-east-1'), # Defaults to us-east-1 if not set
+    region_name=os.getenv('AWS_REGION', 'us-east-1'),
     aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
     aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
 )
 
 vocabulary_name = 'SovereignV_V2'
 
-# Notice the hyphen in Ration-Card! No spaces allowed in AWS API.
 phrases = [
     "Ration-Card", "Ombudsman", "Grievance", "MLA", "Verification", 
     "Sovereign", "Aadhaar", "Panchayat", "Tehsildar", "Sankalp"

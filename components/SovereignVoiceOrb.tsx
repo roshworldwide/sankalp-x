@@ -4,16 +4,8 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// TYPES
-// ─────────────────────────────────────────────────────────────────────────────
 type OrbPhase = "uninitialized" | "idle" | "listening" | "processing" | "speaking";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GLSL SHADERS (Strict Apple Math)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Simplex 3D Noise by Ashima Arts// NO 3D NOISE. Pure Trigonometric Directional Vectors.
 const vertexShader = `
 uniform float u_time;
 
@@ -93,14 +85,10 @@ void main() {
 }
 `;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// REACT THREE FIBER SPHERE COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
 const PlasmaSphere = ({ phase, targetVolumeRef }: { phase: OrbPhase; targetVolumeRef: React.MutableRefObject<number> }) => {
     const meshRef = useRef<THREE.Mesh>(null);
     const materialRef = useRef<THREE.ShaderMaterial>(null);
 
-    // Track smoothed values manually so we can lerp fluidly
     const smoothSpeed = useRef(0.2);
     const currentVolumeRef = useRef(0.0);
     const internalTime = useRef(0.0);
@@ -116,45 +104,35 @@ const PlasmaSphere = ({ phase, targetVolumeRef }: { phase: OrbPhase; targetVolum
     useFrame((_, delta) => {
         if (!materialRef.current) return;
 
-        // The Audio Smoothing Algorithm (Fixing the Roughness)
-        // Syrupy smoothing of the raw microphone data
         currentVolumeRef.current += (targetVolumeRef.current - currentVolumeRef.current) * 0.1;
 
-        // Determine target states based on semantic phase
-        let targetSpeed = 0.2; // Idle: drifting lazily
+        let targetSpeed = 0.2;
         let finalVolume = 0.0;
 
         if (phase === "uninitialized" || phase === "idle") {
             targetSpeed = 0.2;
             finalVolume = 0.0;
         } else if (phase === "listening") {
-            // Volume linearly drives speed and ribbon thickness
             targetSpeed = 0.8 + currentVolumeRef.current * 2.0;
-            finalVolume = currentVolumeRef.current * 1.5; // Swell ribbons when speaking
+            finalVolume = currentVolumeRef.current * 1.5;
         } else if (phase === "processing") {
-            // High speed orbit to mask latency, thinned out ribbons
             targetSpeed = 3.5;
             finalVolume = 0.4;
         } else if (phase === "speaking") {
-            // Balanced but highly reactive output
             targetSpeed = 1.0 + currentVolumeRef.current * 1.5;
             finalVolume = currentVolumeRef.current * 1.8;
         }
 
-        // Apply strict, beautiful MathUtils.lerp for fluid transitions
         smoothSpeed.current = THREE.MathUtils.lerp(smoothSpeed.current, targetSpeed, 0.05);
 
-        // Advance internal time
         internalTime.current += delta * smoothSpeed.current;
 
-        // Apply to uniforms
         materialRef.current.uniforms.u_time.value = internalTime.current;
         materialRef.current.uniforms.u_volume.value = finalVolume;
     });
 
     return (
         <mesh ref={meshRef}>
-            {/* Perfectly smooth geometry, scaled comfortably within camera frustum */}
             <sphereGeometry args={[2.5, 128, 128]} />
             <shaderMaterial
                 ref={materialRef}
@@ -163,30 +141,25 @@ const PlasmaSphere = ({ phase, targetVolumeRef }: { phase: OrbPhase; targetVolum
                 uniforms={uniforms}
                 transparent={true}
                 depthWrite={false}
-                blending={THREE.AdditiveBlending} // Vibrant Additive Light Intersection Core
+                blending={THREE.AdditiveBlending}
             />
         </mesh>
     );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN UI COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
 export default function SovereignVoiceOrb() {
     const [phase, setPhase] = useState<OrbPhase>("uninitialized");
     const [error, setError] = useState<string | null>(null);
     const targetVolumeRef = useRef(0);
     const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Audio refs
-    const recognitionRef = useRef<any>(null);  // Web Speech API SpeechRecognition
+    const recognitionRef = useRef<any>(null);
     const streamRef = useRef<MediaStream | null>(null);
 
     const audioCtxRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
     const dataArrayRef = useRef<Uint8Array | null>(null);
 
-    // WebSocket / Playback Refs
     const socketRef = useRef<WebSocket | null>(null);
     const playbackCtxRef = useRef<AudioContext | null>(null);
     const playbackAnalyserRef = useRef<AnalyserNode | null>(null);
@@ -225,9 +198,6 @@ export default function SovereignVoiceOrb() {
         source.start();
     };
 
-    // ───────────────────────────────────────────────────────────────────────────
-    // VOLUME ANALYSIS LOOP (VAD BRAIN)
-    // ───────────────────────────────────────────────────────────────────────────
     useEffect(() => {
         let animFrame: number;
         const checkVolume = () => {
@@ -235,13 +205,11 @@ export default function SovereignVoiceOrb() {
             const SPEECH_THRESHOLD = 0.05;
 
             if ((phase === "idle" || phase === "listening" || phase === "speaking") && analyserRef.current && dataArrayRef.current) {
-                // Read Mic Input
                 analyserRef.current.getByteFrequencyData(dataArrayRef.current as any);
                 let sum = 0;
                 for (let i = 0; i < dataArrayRef.current.length; i++) sum += dataArrayRef.current[i];
                 targetVol = sum / dataArrayRef.current.length / 255.0;
 
-                // --- VAD ENGINE & INTERRUPTIBILITY ---
                 if (phase === "speaking" && targetVol > SPEECH_THRESHOLD * 2.0) {
                     console.log("[BARGE-IN] Detected. Nuking TTS Queue.");
                     playbackQueueRef.current = [];
@@ -255,7 +223,6 @@ export default function SovereignVoiceOrb() {
                     if (socketRef.current?.readyState === WebSocket.OPEN) {
                         socketRef.current.send(JSON.stringify({ action: "interrupt" }));
                     }
-                    // Restart Speech Recognition for next utterance
                     try { recognitionRef.current?.start(); } catch (_) { }
                     setPhase("listening");
                     targetVolumeRef.current = targetVol;
@@ -264,7 +231,6 @@ export default function SovereignVoiceOrb() {
                 }
 
                 if (phase === "idle" && targetVol > SPEECH_THRESHOLD) {
-                    // Wake Up: Start Speech Recognition
                     try { recognitionRef.current?.start(); } catch (_) { }
                     setPhase("listening");
                     if (silenceTimerRef.current) {
@@ -272,12 +238,9 @@ export default function SovereignVoiceOrb() {
                         silenceTimerRef.current = null;
                     }
                 } else if (phase === "listening") {
-                    // Speech Recognition handles silence automatically via onend
-                    // Just keep the visual volume responsive
                 }
             }
 
-            // Visual Sync (Wow Factor) using actual output node continuously
             if (phase === "speaking" && playbackAnalyserRef.current && playbackDataRef.current) {
                 playbackAnalyserRef.current.getByteFrequencyData(playbackDataRef.current as any);
                 let sum = 0;
@@ -292,16 +255,12 @@ export default function SovereignVoiceOrb() {
         return () => cancelAnimationFrame(animFrame);
     }, [phase]);
 
-    // ───────────────────────────────────────────────────────────────────────────
-    // AUDIO INITIALIZATION (IGNITION)
-    // ───────────────────────────────────────────────────────────────────────────
     const initializeAudio = async () => {
         try {
             setError(null);
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
 
-            // Maintain context open permanently
             const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
             const actx = new AudioCtx();
             audioCtxRef.current = actx;
@@ -312,9 +271,6 @@ export default function SovereignVoiceOrb() {
             const source = actx.createMediaStreamSource(stream);
             source.connect(analyser);
 
-            // ──────────────────────────────────────────────────────────────
-            // WEB SPEECH API (Browser-Native STT — Zero AWS Transcribe)
-            // ──────────────────────────────────────────────────────────────
             const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
             if (SpeechRecognition) {
                 const recognition = new SpeechRecognition();
@@ -325,7 +281,6 @@ export default function SovereignVoiceOrb() {
                 recognitionRef.current = recognition;
 
                 recognition.onresult = (event: any) => {
-                    // Grab the latest result
                     const lastResult = event.results[event.results.length - 1];
                     if (lastResult.isFinal) {
                         const transcript = lastResult[0].transcript.trim();
@@ -333,7 +288,6 @@ export default function SovereignVoiceOrb() {
                             console.log(`[SpeechAPI] Final transcript: "${transcript}"`);
                             setPhase("processing");
 
-                            // EMERGENCY CLIENT-SIDE TTS FALLBACK (Multi-Turn Fake-Out)
                             setTimeout(() => {
                                 setPhase("speaking");
                                 const synth = window.speechSynthesis;
@@ -368,7 +322,6 @@ export default function SovereignVoiceOrb() {
                                 }
 
                                 const utterance = new SpeechSynthesisUtterance(responseText);
-                                // Select a premium local voice if available
                                 const voices = synth.getVoices();
                                 const preferredVoice = voices.find(v => v.name.includes("Samantha") || v.name.includes("Daniel") || v.name.includes("Rishi") || v.name.includes("Premium"));
                                 if (preferredVoice) utterance.voice = preferredVoice;
@@ -376,7 +329,6 @@ export default function SovereignVoiceOrb() {
                                 let fakeVolInterval: NodeJS.Timeout;
 
                                 utterance.onstart = () => {
-                                    // Manually modulate WebGL to fake audio reactivity
                                     fakeVolInterval = setInterval(() => {
                                         targetVolumeRef.current = 0.5 + Math.random() * 1.0;
                                     }, 100);
@@ -389,14 +341,12 @@ export default function SovereignVoiceOrb() {
                                 };
 
                                 synth.speak(utterance);
-                            }, 1500); // Simulate 1.5s cloud latency
+                            }, 1500);
                         }
                     }
                 };
 
                 recognition.onend = () => {
-                    // Auto-restart if we're in listening or idle phase
-                    // (recognition stops automatically after silence)
                     console.log("[SpeechAPI] Recognition ended.");
                 };
 
@@ -409,12 +359,11 @@ export default function SovereignVoiceOrb() {
                 setError("Speech Recognition not supported in this browser.");
             }
 
-            // Initialize WebSocket persistent connection with Reconnection Backoff
             const connectWebSocket = (retryCount = 0) => {
                 if (socketRef.current?.readyState === WebSocket.OPEN) return;
 
                 const ws = new WebSocket("ws://127.0.0.1:8000/ws/voice/stream");
-                ws.binaryType = "arraybuffer"; // Support binary audio chunks
+                ws.binaryType = "arraybuffer";
 
                 ws.onopen = () => {
                     console.log("WebSocket connected. Orchestrating Voice Pipeline.");
@@ -424,7 +373,6 @@ export default function SovereignVoiceOrb() {
 
                 ws.onmessage = async (event) => {
                     if (event.data instanceof ArrayBuffer) {
-                        // AWS Polly Audio Chunk arrived before sequence completion!
                         try {
                             if (!playbackCtxRef.current) {
                                 const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -454,20 +402,17 @@ export default function SovereignVoiceOrb() {
                 ws.onclose = () => {
                     console.warn(`[Fault Tolerance] Socket closed. Reconnecting attempt ${retryCount + 1}...`);
 
-                    // Delay setting uninitialized error phase by 3 seconds (silent reconnect window)
                     setTimeout(() => {
                         if (socketRef.current === ws || (socketRef.current && socketRef.current.readyState !== WebSocket.OPEN && socketRef.current.readyState !== WebSocket.CONNECTING)) {
                             setPhase("uninitialized");
                         }
                     }, 3000);
 
-                    // Exponential backoff capped at 5 seconds
                     const timeout = Math.min(1000 * Math.pow(2, retryCount), 5000);
                     setTimeout(() => connectWebSocket(retryCount + 1), timeout);
                 };
 
                 ws.onerror = () => {
-                    // Delay dropping the UI error message
                     setTimeout(() => {
                         if (socketRef.current === ws || (socketRef.current && socketRef.current.readyState !== WebSocket.OPEN && socketRef.current.readyState !== WebSocket.CONNECTING)) {
                             setError("Connection Drop Detected. Standby.");
@@ -493,7 +438,6 @@ export default function SovereignVoiceOrb() {
         if (phase === "uninitialized") initializeAudio();
     };
 
-    // Determine typography text based on phase
     const getStatusText = () => {
         switch (phase) {
             case "uninitialized": return "SYSTEM DORMANT";
@@ -505,34 +449,27 @@ export default function SovereignVoiceOrb() {
         }
     };
 
-    // ───────────────────────────────────────────────────────────────────────────
-    // COMPONENT RENDER
-    // ───────────────────────────────────────────────────────────────────────────
     return (
         <div
             className="relative w-full h-screen bg-[#030303] flex items-center justify-center cursor-pointer group select-none"
             onClick={handleClick}
         >
-            {/* The 3D Environment: Strict w-full h-full, ZERO clip wrappers */}
             <div className="absolute inset-0 w-full h-full pointer-events-none">
                 <Canvas
                     dpr={typeof window !== 'undefined' ? window.devicePixelRatio : 1}
-                    camera={{ position: [0, 0, 8], fov: 45 }} // Pulled back sufficiently for a 2.5 radius sphere
-                    gl={{ toneMapping: THREE.NoToneMapping, antialias: true, alpha: true }} // Disables color-washing
+                    camera={{ position: [0, 0, 8], fov: 45 }}
+                    gl={{ toneMapping: THREE.NoToneMapping, antialias: true, alpha: true }}
                 >
                     <ambientLight intensity={1.5} />
                     <PlasmaSphere phase={phase} targetVolumeRef={targetVolumeRef} />
                 </Canvas>
             </div>
 
-            {/* Strict UI Overlay (Centered over the Orb) */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
-                {/* Glowing Glyph Centerpiece */}
                 <div className="text-white/80 font-mono text-4xl sm:text-5xl font-light tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] transition-opacity duration-700 ease-in-out">
                     Z
                 </div>
 
-                {/* Subtext below the core */}
                 <div className="absolute mt-28">
                     <p className="tracking-widest text-xs font-light text-cyan-400/70 drop-shadow-[0_0_8px_rgba(6,182,212,0.5)] transition-all duration-700 ease-in-out">
                         {getStatusText()}
@@ -540,7 +477,6 @@ export default function SovereignVoiceOrb() {
                 </div>
             </div>
 
-            {/* Error state */}
             {error && (
                 <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 text-rose-500/80 tracking-widest text-xs uppercase font-mono">
                     {error}

@@ -3,13 +3,11 @@ import json
 import os
 from dotenv import load_dotenv
 
-# Load the secure AWS credentials
 load_dotenv()
 
 def extract_and_reason(image_path):
     print("Initiating Sankalp X Cognitive Pipeline...")
     
-    # Initialize AWS Clients
     try:
         textract_client = boto3.client('textract')
         bedrock_client = boto3.client('bedrock-runtime')
@@ -17,7 +15,6 @@ def extract_and_reason(image_path):
         print(f"Failed to initialize AWS clients: {e}")
         return
     
-    # Step 1: Amazon Textract Vision
     print(f"Scanning document: {image_path} via Amazon Textract...")
     try:
         with open(image_path, 'rb') as document:
@@ -27,7 +24,6 @@ def extract_and_reason(image_path):
             Document={'Bytes': image_bytes}
         )
         
-        # Parse the Textract response into a single clean string
         lines = [block['Text'] for block in textract_response.get('Blocks', []) if block['BlockType'] == 'LINE']
         extracted_raw_text = " ".join(lines)
         print("Extraction successful.")
@@ -39,7 +35,6 @@ def extract_and_reason(image_path):
         print(f"Error during Textract extraction: {e}")
         return
     
-    # Step 2: Claude 3.5 Sonnet Reasoning
     print("Routing raw data to Claude 3.5 Sonnet for JSON structuring...")
     
     prompt = f"""
@@ -78,6 +73,5 @@ def extract_and_reason(image_path):
         return None
 
 if __name__ == "__main__":
-    # We will test this with a dummy image
     extract_and_reason("dummy_id.png")
     print("Sankalp X Cognitive Pipeline API implementation loaded.")

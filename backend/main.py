@@ -22,12 +22,8 @@ from prisma import Client
 
 from sutra_validator import SutraValidator, EthicalGuardrailVeto
 
-# Ensure the .env loads correctly
 load_dotenv()
 
-# ==============================================================================
-# 0. INITIALIZATION & SETUP
-# ==============================================================================
 app = FastAPI(
     title="Sankalp X Sovereign Supervisor MAS",
     description="Multi-Agent System orchestrated by Amazon Nova Premier with Guardrails, Liveness, RAG, and Native AWS Translation.",
@@ -36,13 +32,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins for local hackathon testing
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Global variables for AWS clients & Prisma
 textract_client = None
 bedrock_client = None
 bedrock_agent_client = None
@@ -53,7 +48,6 @@ polly_client = None
 rekognition_client = None
 db = Client()
 
-# Load mock scheme registry
 try:
     with open("scheme_registry.json", "r") as f:
         SCHEME_REGISTRY = json.load(f).get("schemes", {})
@@ -65,7 +59,6 @@ async def startup_event():
     global textract_client, bedrock_client, bedrock_agent_client, transcribe_client, translate_client, s3_client, polly_client, rekognition_client
     try:
         from botocore.config import Config
-        # Optimize boto3 connection pool and set retries to avoid latency spikes on TCP handshakes
         boto_config = Config(
             max_pool_connections=50,
             retries={"max_attempts": 1, "mode": "standard"},
@@ -99,9 +92,6 @@ async def shutdown_event():
     await db.disconnect()
     print("Prisma DB Disconnected.")
 
-# ==============================================================================
-# 1. PYDANTIC MODELS (Safety & Security)
-# ==============================================================================
 class UserProfileData(BaseModel):
     name: str
     id_number: str
@@ -113,24 +103,17 @@ class VerificationResult(BaseModel):
     adjudicator_status: str
     reasoning_explanation: str
 
-# Exceptions
 class ValidationConflict(Exception):
     pass
 
-# Voice Mappings
 POLLY_VOICE_MAP = {
     'hi': ('Kajal', 'neural'),
     'en': ('Aditi', 'neural'),
     'ta': ('Shruti', 'standard'),
-    'te': ('Shruti', 'standard'), # fallback to best available
-    'kn': ('Aditi', 'standard')   # fallback
+    'te': ('Shruti', 'standard'),
+    'kn': ('Aditi', 'standard')
 }
 
-# ==============================================================================
-# 2. INTERNAL AGENTS & MODULES
-# ==============================================================================
-
-# 2.0 The Scheme Specialist (Knowledge Base Retrieval)
 class SchemeSpecialistAgent:
     @staticmethod
     def retrieve_scheme_context(query: str) -> Tuple[str, List[str]]:
@@ -166,7 +149,6 @@ class SchemeSpecialistAgent:
             print(f"[Scheme Specialist Agent ERROR] Retrieval failed: {e}")
             return "", []
 
-# 2.1 The Linguistic Agent (AWS Translate Bridge)
 class LinguisticAgent:
     @staticmethod
     def translate_to_english(text: str, source_lang_code: str = 'auto') -> str:
@@ -195,7 +177,6 @@ class LinguisticAgent:
         )
         return response.get('TranslatedText', text)
 
-# 2.2 The Adjudicator Agent (Verification)
 class AdjudicatorAgent:
     @staticmethod
     async def verify_profile(profile_data: dict, db_user_id: str):
@@ -218,7 +199,6 @@ class AdjudicatorAgent:
             reasoning_trace.append("Age validation skipped due to parsing failure. Proceeding defensively.")
             return "PASSED", reasoning_trace[-1]
 
-# 2.3 The Civil Servant Agent (Reflective Reasoning)
 class CivilServantAgent:
     @staticmethod
     async def assess_intent(english_intent_query: str, grievance_id: str, retrieved_context: str = "") -> dict:
@@ -271,7 +251,6 @@ class CivilServantAgent:
             if "?" not in str(assessment.get("response")):
                 assessment["response"] = "I need more details to assist you. Could you please specify the issue further?"
         
-        # We will return the reasoning data so main.py can inject it via BackgroundTasks
         reasoning_log = {
             'grievance_id': grievance_id,
             'agent_name': 'Civil_Servant',
@@ -282,7 +261,6 @@ class CivilServantAgent:
         
         return assessment, reasoning_log
 
-# 2.4 The Forensic Ombudsman Agent (Legal Calculator & Execution)
 class ForensicOmbudsmanAgent:
     @staticmethod
     async def process_legal_execution(user_name: str, id_number: str, assessment: dict, grievance_id: str, english_intent_query: str) -> Tuple[str, str]:
@@ -341,10 +319,6 @@ class ForensicOmbudsmanAgent:
         )
         return f"Forensic calculation legally amended the document adding a claim of {total_penalty} units over {delay_months} months.", pdf_data_uri
 
-# ==============================================================================
-# 3. SUPERVISOR API ENDPOINTS
-# ==============================================================================
-
 @app.post("/v1/vision/analyze", response_model=VerificationResult)
 async def analyze_vision(
     liveness_session_id: str = Form("dummy_session"),
@@ -353,7 +327,6 @@ async def analyze_vision(
     """Supervisor Flow: Rekognition Liveness -> Textract -> Nova Parsing -> Adjudicator -> Vault"""
     print(f"\n[SUPERVISOR] Delegating Vision to Textract: {file.filename}")
     try:
-        # Step 0: Amazon Rekognition Liveness Spoof Check
         print(f"[Biological Guardrail] Verifying Liveness Session ID: {liveness_session_id}")
         if liveness_session_id == "dummy_session":
             print("[Biological Guardrail] Mock Bypass: Skipping API spoof check for local testing.")
@@ -373,14 +346,12 @@ async def analyze_vision(
                  
         image_bytes = await file.read()
         
-        # Step 1: Textract
         textract_response = textract_client.detect_document_text(
             Document={'Bytes': image_bytes}
         )
         lines = [block['Text'] for block in textract_response.get('Blocks', []) if block['BlockType'] == 'LINE']
         extracted_raw_text = " ".join(lines)
         
-        # Step 2: Nova Structuring
         prompt = f"""
         Extract the citizen profile from this raw text: "{extracted_raw_text}".
         Return ONLY valid JSON matching this exact structure, with no markdown formatting:
@@ -401,7 +372,6 @@ async def analyze_vision(
         
         profile_data = json.loads(nova_json_str.strip())
         
-        # Step 3: Vault Persistence
         db_user = await db.userprofile.upsert(
             where={'id_number': profile_data['ID_Number']},
             data={
@@ -417,7 +387,6 @@ async def analyze_vision(
             }
         )
         
-        # Step 4: Adjudicator Verification
         adj_status, adj_reasoning = await AdjudicatorAgent.verify_profile(profile_data, db_user.id)
         
         return VerificationResult(
@@ -445,7 +414,6 @@ from amazon_transcribe.model import TranscriptEvent
 
 
 class _TranscriptHandler(TranscriptResultStreamHandler):
-    """Collects finalized (non-partial) transcript segments from the streaming API."""
     def __init__(self, output_stream):
         super().__init__(output_stream)
         self.transcript_parts = []
@@ -458,20 +426,14 @@ class _TranscriptHandler(TranscriptResultStreamHandler):
 
 
 async def transcribe_audio_streaming(audio_bytes: bytes) -> str:
-    """
-    Streams raw 16kHz 16-bit PCM audio (sent directly from the browser)
-    through AWS Transcribe Streaming for instant STT.
-    No ffmpeg conversion needed — frontend sends native PCM.
-    """
     t0 = time.time()
     
-    if not audio_bytes or len(audio_bytes) < 1600:  # Less than 50ms of 16kHz PCM
+    if not audio_bytes or len(audio_bytes) < 1600:
         print(f"  [STT] Audio buffer too small ({len(audio_bytes)}b). Skipping.")
         return ""
     
     print(f"  [STT] Raw PCM received: {len(audio_bytes)} bytes ({len(audio_bytes)/32000:.1f}s of audio)")
 
-    # Stream raw PCM through Transcribe Streaming API
     import boto3
     session = boto3.Session()
     region = session.region_name or 'us-east-1'
@@ -483,14 +445,13 @@ async def transcribe_audio_streaming(audio_bytes: bytes) -> str:
         media_encoding="pcm",
     )
 
-    # Feed audio in 16KB chunks and send explicit EOS
     async def _feed_audio():
         chunk_size = 16384
         for i in range(0, len(audio_bytes), chunk_size):
             await stream.input_stream.send_audio_event(
                 audio_chunk=audio_bytes[i:i + chunk_size]
             )
-        await stream.input_stream.end_stream()  # EOS SIGNAL — prevents hang!
+        await stream.input_stream.end_stream()
 
     handler = _TranscriptHandler(stream.output_stream)
     await asyncio.gather(_feed_audio(), handler.handle_events())
@@ -549,7 +510,6 @@ async def websocket_voice_endpoint(websocket: WebSocket):
                     if payload.get("action") == "start":
                         user_id = payload.get("user_id", user_id)
                     elif payload.get("action") == "process_text":
-                        # MVP: Browser sends recognized text directly via Web Speech API
                         user_text = payload.get("text", "").strip()
                         if user_text:
                             print(f"[WebSocket] Text received from browser STT: '{user_text}'")
@@ -558,7 +518,6 @@ async def websocket_voice_endpoint(websocket: WebSocket):
                         else:
                             print("[WebSocket] Empty text received. Ignoring.")
                     elif payload.get("action") == "stop_audio":
-                        # Legacy fallback — ignore binary audio path
                         pass
                     elif payload.get("action") == "interrupt":
                         print("[WebSocket] INTERRUPT received from client. Nuking active generation.")
@@ -576,7 +535,6 @@ async def websocket_voice_endpoint(websocket: WebSocket):
             active_pipeline.cancel()
 
 async def _process_ws_pipeline(websocket: WebSocket, user_text: str, user_id: str, interrupt_flag: asyncio.Event):
-    """MVP Pipeline: Browser text → Translation → Context → Bedrock → Polly → WebSocket"""
     t0 = time.time()
     transcribed_text = user_text
     detected_language = "en-IN"
@@ -593,21 +551,12 @@ async def _process_ws_pipeline(websocket: WebSocket, user_text: str, user_id: st
             return
             
         if interrupt_flag.is_set(): return
-        # 3. Translation & Context (PARALLELIZED)
         t_ctx = time.time()
         english_intent_query = await asyncio.to_thread(LinguisticAgent.translate_to_english, text=transcribed_text, source_lang_code=detected_language)
         if interrupt_flag.is_set(): return
         retrieved_context, sources = await asyncio.to_thread(SchemeSpecialistAgent.retrieve_scheme_context, english_intent_query)
         print(f"  [PIPELINE] Translation + Context: {(time.time()-t_ctx)*1000:.0f}ms")
         if interrupt_flag.is_set(): return
-        
-        # ═══════════════════════════════════════════════════════════════════
-        # 4. THREE-STAGE PRODUCER-CONSUMER PIPELINE
-        # ═══════════════════════════════════════════════════════════════════
-        # Stage 1: Bedrock Producer → sentence_queue
-        # Stage 2: Polly Worker    → sentence_queue → audio_queue
-        # Stage 3: WS Consumer     → audio_queue → websocket.send_bytes
-        # ═══════════════════════════════════════════════════════════════════
         
         context_block = f"\n\n[CONTEXT FROM OFFICIAL SCHEME DOCUMENTS: {retrieved_context}]" if retrieved_context else ""
         system_prompt = f"""You are Sankalp X's General-Purpose Indian Government Ombudsman.
@@ -623,17 +572,12 @@ Your spoken response here...
 </response>"""
         
         loop = asyncio.get_running_loop()
-        sentence_queue: asyncio.Queue = asyncio.Queue()   # Bedrock → Polly
-        audio_queue: asyncio.Queue = asyncio.Queue()       # Polly → WebSocket
+        sentence_queue: asyncio.Queue = asyncio.Queue()
+        audio_queue: asyncio.Queue = asyncio.Queue()
         
-        # ───────────────────────────────────────────────────────────────
-        # STAGE 1: BEDROCK PRODUCER (runs in a thread, pushes sentences)
-        # ───────────────────────────────────────────────────────────────
         async def bedrock_producer():
-            """Simulates processing and yields a hardcoded response for the hackathon MVP."""
             if interrupt_flag.is_set(): return
             
-            # Simulate "thinking" latency
             await asyncio.sleep(1.0)
             
             if interrupt_flag.is_set(): return
@@ -641,27 +585,20 @@ Your spoken response here...
             hardcoded_msg = "I have analyzed your request. The WebSocket streaming architecture is fully operational, maintaining a latency of under two milliseconds. All systems are optimized and ready for deployment."
             print(f"  [STAGE 1] Bedrock Producer: Bypassing LLM. Yielding Hardcoded Hackathon Demo String.")
             
-            # Split into synthetic sentences so chunked TTS still works
             sentences = re.split(r'(?<=[.?!])\s+', hardcoded_msg)
             for s in sentences:
                 if s.strip() and not interrupt_flag.is_set():
                     await sentence_queue.put(s.strip())
             
-            # Poison pill for Polly worker
             await sentence_queue.put(None)
         
-        # ───────────────────────────────────────────────────────────────
-        # STAGE 2: POLLY WORKER (reads sentences, synthesizes on thread)
-        # ───────────────────────────────────────────────────────────────
         async def polly_worker():
-            """Reads sentences from sentence_queue, calls Polly on a thread,
-            and pushes raw audio bytes into audio_queue."""
             idx = 0
             while True:
                 if interrupt_flag.is_set(): break
                 sentence = await sentence_queue.get()
                 if sentence is None:
-                    break  # Poison pill from producer
+                    break
                 if not sentence.strip() or interrupt_flag.is_set():
                     continue
                 
@@ -673,21 +610,15 @@ Your spoken response here...
                     print(f"  [STAGE 2] Polly #{idx}: {len(audio_bts)}b synthesized in {(time.time()-t_s)*1000:.0f}ms")
                 idx += 1
             
-            # Poison pill for WebSocket consumer
             await audio_queue.put(None)
         
-        # ───────────────────────────────────────────────────────────────
-        # STAGE 3: WEBSOCKET CONSUMER (reads audio, sends immediately)
-        # ───────────────────────────────────────────────────────────────
         async def ws_consumer():
-            """Reads audio chunks from audio_queue and fires them down 
-            the WebSocket the exact millisecond they arrive."""
             chunk_count = 0
             while True:
                 if interrupt_flag.is_set(): break
                 audio_data = await audio_queue.get()
                 if audio_data is None:
-                    break  # Poison pill from worker
+                    break
                 if not interrupt_flag.is_set():
                     await websocket.send_bytes(audio_data)
                     chunk_count += 1
@@ -697,13 +628,10 @@ Your spoken response here...
                 await websocket.send_text(json.dumps({"action": "done"}))
             print(f"  [STAGE 3] Consumer finished. {chunk_count} chunks sent.")
         
-        # ═══════════════════════════════════════════════════════════════════
-        # ORCHESTRATION: Run all 3 stages concurrently
-        # ═══════════════════════════════════════════════════════════════════
         await asyncio.gather(
-            bedrock_producer(),  # Stage 1: Tokens → Sentences
-            polly_worker(),      # Stage 2: Sentences → Audio
-            ws_consumer()        # Stage 3: Audio → WebSocket
+            bedrock_producer(),
+            polly_worker(),
+            ws_consumer()
         )
         print(f"[TIMER] Full pipeline completed in {time.time() - t0:.2f}s")
         

@@ -4,13 +4,11 @@ import time
 import urllib.request
 from dotenv import load_dotenv
 
-# Load the secure AWS credentials
 load_dotenv()
 
 def engineer_voice_pipeline(audio_path, s3_bucket=None):
     print("Initiating Sankalp X Voice Pipeline...")
     
-    # Initialize AWS Clients
     try:
         transcribe_client = boto3.client('transcribe')
         s3_client = boto3.client('s3')
@@ -20,7 +18,6 @@ def engineer_voice_pipeline(audio_path, s3_bucket=None):
         print(f"Failed to initialize AWS clients: {e}")
         return
         
-    # Step 1: Ears - Amazon Transcribe
     print(f"\n[1] EARS: Processing audio: {audio_path}")
     transcribed_text = ""
     
@@ -38,7 +35,7 @@ def engineer_voice_pipeline(audio_path, s3_bucket=None):
                 TranscriptionJobName=job_name,
                 Media={'MediaFileUri': s3_uri},
                 MediaFormat='wav',
-                LanguageCode='en-IN' # Indian English for better accent recognition
+                LanguageCode='en-IN'
             )
             
             print("Polling transcription job status...")
@@ -66,14 +63,12 @@ def engineer_voice_pipeline(audio_path, s3_bucket=None):
             print(f"Error during Transcribe orchestration: {e}")
             return
     else:
-        # Local mock bypass if S3 bucket isn't provisioned
         print("[Mock Bypass] S3 Bucket not provided. Simulating Transcribe output...")
         transcribed_text = "What is the Pradhan Mantri Kisan Samman Nidhi Yojana and how can it help me?"
         
     print(f"Transcribed Input: \"{transcribed_text}\"")
         
     
-    # Step 2: Brain - Amazon Nova via Bedrock
     print("\n[2] BRAIN: Routing transcribed query to Amazon Nova Premier...")
     
     prompt = f"""
@@ -87,7 +82,6 @@ def engineer_voice_pipeline(audio_path, s3_bucket=None):
     
     cognitive_response_text = ""
     try:
-        # Using the Converse API which perfectly handles Amazon Nova's structure
         bedrock_response = bedrock_client.converse(
             modelId="us.amazon.nova-premier-v1:0",
             messages=[
@@ -110,11 +104,9 @@ def engineer_voice_pipeline(audio_path, s3_bucket=None):
         print(f"Error during Bedrock invocation: {e}")
         return
         
-    # Step 3: Mouth - Amazon Polly
     print("\n[3] MOUTH: Synthesizing speech via Amazon Polly...")
     output_audio_path = "sankalp_response.mp3"
     try:
-        # Using a Neural voice engine for Indian-accented English/Hindi ('Kajal' en-IN)
         polly_response = polly_client.synthesize_speech(
             Text=cognitive_response_text,
             OutputFormat='mp3',
@@ -134,6 +126,5 @@ def engineer_voice_pipeline(audio_path, s3_bucket=None):
         return
 
 if __name__ == "__main__":
-    # Test with local bypass (no S3 bucket argument provided)
     engineer_voice_pipeline("dummy_audio.wav")
     print("\nSankalp X Voice Pipeline prototype execution completed.")
